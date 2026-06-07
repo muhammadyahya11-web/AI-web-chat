@@ -74,68 +74,22 @@ export default function ChatCenter() {
     };
   }, [activeChat, setTyping]);
 
-const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef(null);
   const recordingIntervalRef = useRef(null);
-  const chunksRef = useRef([]);
 
-  const startRecording = async () => {
-    chunksRef.current = [];
-    if (!navigator.mediaDevices?.getUserMedia) {
-      alert("Voice recording not supported in this browser");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (chunksRef.current.length === 0) return;
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const audioRef = ref(storage, `voice_messages/${Date.now()}_${currentUser.uid}.webm`);
-        const uploadTask = uploadBytesResumable(audioRef, blob);
-        uploadTask.on("state_changed",
-          null,
-          (err) => console.error("Upload failed:", err),
-          async () => {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            await addDoc(collection(db, "chats", activeChat.chatId, "messages"), {
-              type: "voice",
-              audioUrl: url,
-              duration: recordingTime,
-              senderId: currentUser.uid,
-              createdAt: serverTimestamp(),
-              readBy: [currentUser.uid],
-              reactions: {},
-            });
-            await setDoc(doc(db, "chats", activeChat.chatId), {
-              lastMessage: "🎙️ Voice message",
-              updatedAt: serverTimestamp(),
-              unread: {
-                ...activeChat.unread,
-                [currentUser.uid]: 0,
-                [activeChat.user.id]: (activeChat.unread?.[activeChat.user.id] || 0) + 1,
-              },
-            }, { merge: true });
-            setRecordingTime(0);
-          }
-        );
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      recordingIntervalRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
-    } catch (err) {
-      console.error("Recording error:", err);
-      alert("Microphone permission required. Please allow microphone access.");
-    }
-  };
+  const sendMessage = async () => {
+    if (!text.trim() || !activeChat) return;
+    const message = {
+      text: text.trim(),
+      senderId: currentUser.uid,
+      createdAt: serverTimestamp(),
+      reactions: {},
+      readBy: [currentUser.uid],
+      deliveredTo: [],
+      type: "text",
+    };
     await addDoc(collection(db, "chats", activeChat.chatId, "messages"), message);
     await setDoc(
       doc(db, "chats", activeChat.chatId),
@@ -503,7 +457,7 @@ const [isRecording, setIsRecording] = useState(false);
       </AnimatePresence>
 
 {/* Input */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 sm:sticky sm:bottom-0 px-3 sm:px-4 py-3 bg-[var(--bg-card)]/95 backdrop-blur-xl border-t border-[var(--border)]">
+      <div className="fixed bottom-15 left-0 right-0 z-30 sm:sticky sm:bottom-0 px-3 sm:px-4 py-3 bg-[var(--bg-card)]/95 backdrop-blur-xl border-t border-[var(--border)]">
         <div className="flex items-center gap-2 bg-[var(--bg-card-hover)] border border-[var(--border)] rounded-2xl px-4 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all max-w-3xl mx-auto sm:mx-0">
           <motion.button
             whileHover={{ scale: 1.1 }}
